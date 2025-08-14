@@ -1,27 +1,35 @@
 package org.books.core.viewmodel.utils.mapping
 
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
-import org.books.core.viewmodel.annotation.DslState
 import org.books.core.viewmodel.annotation.DslValueHolder
 import kotlin.reflect.KProperty
 
 @DslValueHolder
-fun <StateItem : Any?> stateValue(initialValue: StateItem): Lazy<StateValueHolder<StateItem>> =
-    lazy { StateValueHolder(initialValue) }
+fun <StateItem : Any?, UiStateItem : Any?> stateHolder(
+    initialValue: StateItem,
+    mapper: StateItem.() -> UiStateItem,
+): Lazy<StateValueHolder<StateItem, UiStateItem>> =
+    lazy { StateValueHolder(initialValue, mapper) }
 
-@DslState
-class StateValueHolder<StateItem>(item: StateItem) {
+@DslValueHolder
+class StateValueHolder<StateItem, UiStateItem>(
+    item: StateItem,
+    mapper: StateItem.() -> UiStateItem,
+) {
 
     private val mutableState = mutableStateOf(item)
 
     val value: StateItem by mutableState
 
-    val state: State<StateItem> = mutableState
+    val uiState: State<UiStateItem> = derivedStateOf {
+        mutableState.value.mapper()
+    }
 
     @DslValueHolder
     fun updateTo(block: @DslValueHolder StateItem.() -> StateItem) {
-        block.invoke(mutableState.value)
+        mutableState.value = block.invoke(mutableState.value)
     }
 
     @DslValueHolder

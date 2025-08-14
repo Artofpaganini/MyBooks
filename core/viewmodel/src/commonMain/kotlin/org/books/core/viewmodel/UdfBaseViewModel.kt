@@ -50,19 +50,9 @@ typealias OnDelegateSideEffect<DelegateEffect, SideEffect, DelegateAction> = (
 
 abstract class UdfBaseViewModel<Action, UiState, SideEffect, State>(
     private val initialState: () -> State,
-    private val mapper: (state: State) -> UiState,
+    private val mapper: (State) -> UdfUiMapper<State, UiState>,
     private val dispatchers: UdfDispatchers,
 ) : UdfViewModel<Action, UiState, SideEffect>() {
-
-    constructor(
-        initialState: () -> State,
-        dispatchers: UdfDispatchers,
-        mapHolder: (State) -> UdfUiMapper<State, UiState>
-    ) : this(
-        initialState = initialState,
-        mapper = mapHolder(initialState.invoke())::invoke,
-        dispatchers = dispatchers
-    )
 
     private val vmName = this@UdfBaseViewModel::class.java.simpleName
 
@@ -71,6 +61,8 @@ abstract class UdfBaseViewModel<Action, UiState, SideEffect, State>(
     private val sideEffectWrapper by lazy { SideEffectStreamWrapper<SideEffect?>(vmName) }
 
     val state by stateWrapper.getStream()
+
+    private val internalMapper = mapper.invoke(initialState.invoke())
 
     @MainThread
     override fun onAction(action: Action) {
@@ -87,18 +79,19 @@ abstract class UdfBaseViewModel<Action, UiState, SideEffect, State>(
     @Composable
     override fun collectUiState(): ComposeState<UiState> = remember(stateWrapper) {
         stateWrapper.getStream()
-            .mapOn(mapper::invoke)
+            .mapOn(internalMapper::invoke)
             .stateIn(
                 scope = viewModelScope + dispatchers.map,
                 started = SharingStarted.WhileSubscribed(),
-                initialValue = mapper.invoke(initialState.invoke())
+                initialValue = internalMapper.invoke(initialState.invoke())
             )
     }.collectAsState()
 
     @AnyThread
     override fun getUiState(): Flow<UiState> = stateWrapper.getStream()
-        .mapOn(mapper::invoke)
+        .mapOn(internalMapper::invoke)
         .flowOn(dispatchers.map)
+
 
     @DslState
     protected fun updateState(block: @DslState State.() -> State) {
@@ -202,7 +195,7 @@ abstract class UdfBaseViewModel<Action, UiState, SideEffect, State>(
     private fun <State> StateFlow<State>.mapOn(
         applyChanges: (State) -> UiState
     ): Flow<UiState> = if (dispatchers.map != Dispatchers.Main.immediate) {
-        map(applyChanges::invoke).flowOn(dispatchers.map)
+        map { applyChanges.invoke(it) }.flowOn(dispatchers.map)
     } else {
         map(applyChanges::invoke)
     }

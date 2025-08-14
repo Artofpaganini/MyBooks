@@ -1,9 +1,11 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 plugins {
     id(libs.plugins.android.application.get().pluginId)
     id(libs.plugins.kotlin.multiplatform.get().pluginId)
     id("compose-multiplatform-setup")
+    alias(libs.plugins.ksp)
 }
 
 kotlin {
@@ -14,6 +16,8 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.koin.androidx.compose)
+            implementation(libs.koin.androidx.navigation)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -24,7 +28,18 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.lifecycle.runtime)
+
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.viewmodel)
+            implementation(libs.koin.navigation)
+            api(libs.koin.annotations)
         }
+
+        sourceSets.named("commonMain").configure {
+            kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin")
+        }
+
         commonTest.dependencies {
             implementation(libs.lifecycle.viewmodel)
         }
@@ -34,6 +49,18 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
         }
     }
+}
+
+ksp {
+    arg("KOIN_CONFIG_CHECK","true")
+    arg("USE_COMPOSE_VIEWMODEL","true")
+}
+
+dependencies {
+    add("kspCommonMainMetadata", libs.koin.ksp)
+    add("kspAndroid", libs.koin.ksp)
+    add("kspJvm", libs.koin.ksp)
+    ksp(libs.koin.ksp)
 }
 
 android {
